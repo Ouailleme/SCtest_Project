@@ -18,23 +18,15 @@ TESTS_LIST = [
     ("Vibreur", "📳"), 
     ("Caméra Av.", "🤳"), ("Caméra Arr.", "📷"), 
     ("Écran", "🖥️"), 
+    ("Accéléromètre", "🔄"), ("Proximité", "✋"), # NOUVEAUX
     ("Face ID", "🔓"), ("Boutons Vol", "Volumes"), ("Tactile", "👆")
-]
-
-# Liste des tests qui s'auto-valident
-AUTO_VALIDATING_TESTS = [
-    "Micro Avant", 
-    "Micro Arr.", 
-    "Écran", 
-    "Flash", 
-    "Vibreur"
 ]
 
 class SCtestApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("SCtest Station - v10.1 (Final Sync)")
+        self.title("SCtest Station - v13.0 (Sensors)")
         self.geometry("1150x750") 
         self.configure(fg_color="#F0F0F3")
 
@@ -94,8 +86,11 @@ class SCtestApp(ctk.CTk):
         for index, (test_name, icon) in enumerate(TESTS_LIST):
             row = index // 4
             col = index % 4
-            cmd_name = test_name.replace("É", "E").replace(" ", "_").replace(".", "").replace("(", "").replace(")", "").upper()
-            
+            # Mapping simple pour l'envoi
+            cmd_name = test_name.upper().replace(" ", "_").replace("É", "E").replace("È", "E").replace(".", "").replace("(", "").replace(")", "")
+            if test_name == "Accéléromètre": cmd_name = "ACCEL"
+            if test_name == "Proximité": cmd_name = "PROXIMITE"
+
             btn = ctk.CTkButton(grid_frame, text=f"{icon}\n{test_name}", font=("Segoe UI", 12),
                                 width=100, height=80, fg_color="#F0F0F5", text_color="#333",
                                 hover_color="#E0E0E5",
@@ -104,35 +99,33 @@ class SCtestApp(ctk.CTk):
             self.test_buttons[test_name] = btn
 
     def init_adb_tunnel(self):
-        print("Tentative d'ouverture du tunnel ADB...")
+        print("Tentative tunnel ADB...")
         try:
-            subprocess.run([self.adb_path, "reverse", "tcp:6000", "tcp:6000"], 
-                           creationflags=subprocess.CREATE_NO_WINDOW)
-            print("✅ Tunnel ADB ouvert avec succès !")
-        except: 
-            print("⚠️ ADB non trouvé")
+            subprocess.run([self.adb_path, "reverse", "tcp:6000", "tcp:6000"], creationflags=subprocess.CREATE_NO_WINDOW)
+            print("✅ Tunnel ADB OK")
+        except: pass
 
-    # --- LOGIQUE DE VALIDATION ---
-
+    # --- MAPPING ET VALIDATION ---
     def map_command_to_test_name(self, command_status):
-        # command_status exemple: TEST_HP_ECOUTEUR_OK
+        # Format: TEST_NOM_OK ou TEST_NOM_FAIL
+        if not command_status.startswith("TEST_"): return None, None
         
-        if command_status.endswith("_OK"): status = "OK"
-        elif command_status.endswith("_FAIL"): status = "KO"
-        else: return None, None
+        status = "OK" if command_status.endswith("_OK") else "KO"
+        raw_name = command_status.replace("TEST_", "").replace("_OK", "").replace("_FAIL", "")
+
+        # Mapping inverse (Mobile -> PC)
+        if raw_name == "ACCEL": return "Accéléromètre", status
+        if raw_name == "PROXIMITE": return "Proximité", status
+        if raw_name == "HP_ECOUTEUR": return "HP Écouteur", status
+        if raw_name == "HP_BAS": return "HP Bas (Média)", status
+        if raw_name == "ECRAN": return "Écran", status
+        if raw_name == "FLASH": return "Flash", status
+        if raw_name == "VIBREUR": return "Vibreur", status
+        if raw_name == "BOUTONS_VOL": return "Boutons Vol", status
+        if raw_name == "MIC_AVANT": return "Micro Avant", status
+        if raw_name == "MIC_ARRIERE": return "Micro Arr.", status
         
-        # Retire TEST_ et le statut
-        core_name_raw = command_status.replace(f"_OK", "").replace(f"_FAIL", "").replace("TEST_", "")
-        
-        # MAPPING CORRIGÉ : On mappe le nom du signal vers le nom affiché sur le bouton
-        if core_name_raw == "HP_ECOUTEUR": return "HP Écouteur", status
-        if core_name_raw == "HP_BAS_MEDIA": return "HP Bas (Média)", status # Le mobile envoie ce format sans () ni espace
-        if core_name_raw == "ECRAN": return "Écran", status
-        if core_name_raw == "MIC_AVANT": return "Micro Avant", status
-        if core_name_raw == "MIC_ARRIERE": return "Micro Arr.", status
-        
-        # Pour les noms simples (FLASH, VIBREUR, WIFI)
-        return core_name_raw.title().replace("_", " "), status
+        return None, None
 
     def validate_button(self, btn_name, status):
         col = "#34C759" if status == "OK" else "#FF3B30"
@@ -140,7 +133,7 @@ class SCtestApp(ctk.CTk):
             self.test_buttons[btn_name].configure(fg_color=col, text_color="white")
             print(f"✅ Test {btn_name} validé par le mobile: {status}!")
 
-    # --- SERVEUR SOCKET ---
+    # --- SERVEUR ---
     def socket_server_loop(self):
         HOST = '0.0.0.0'
         PORT = 6000
@@ -148,81 +141,71 @@ class SCtestApp(ctk.CTk):
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.bind((HOST, PORT))
             self.server_socket.listen()
-            
             while not self.stop_thread:
                 conn, addr = self.server_socket.accept()
                 self.mobile_client = conn
                 self.mobile_connected = True
-                self.after(0, lambda: self.lbl_mobile_status.configure(text="📱 App Mobile : Connectée", text_color="#34C759"))
-                
+                self.after(0, lambda: self.lbl_mobile_status.configure(text="📱 Connecté", text_color="#34C759"))
                 try:
                     while True:
                         data = conn.recv(1024)
                         if not data: break
                         msg = data.decode('utf-8').strip()
-                        print(f"Reçu du mobile: {msg}")
+                        print(f"Reçu: {msg}")
                         
-                        # --- SYNCHRONISATION DE L'ÉTAT ---
-                        if msg.startswith("TEST_") and (msg.endswith("_OK") or msg.endswith("_FAIL")):
-                            final_test_name, status = self.map_command_to_test_name(msg)
-                            if final_test_name in self.test_buttons:
-                                self.after(0, lambda: self.validate_button(final_test_name, status))
-                                
-                        # --- DÉTECTION INFOS BATTERIE (Exemple) ---
-                        if "INFO_BATTERY" in msg:
-                            parts = msg.split(":")[1].split("|")
-                            self.after(0, lambda: self.lbl_model.configure(text=f"Batterie: {parts[0]} - {parts[1]}", text_color="black"))
+                        # Synchro auto
+                        if msg.startswith("TEST_"):
+                            name, status = self.map_command_to_test_name(msg)
+                            if name: self.after(0, lambda: self.validate_button(name, status))
 
-                except Exception as e: 
-                    print(f"Erreur lecture: {e}")
-                
-                self.mobile_client = None
+                        if msg.startswith("TRIGGERED:"):
+                             # Ouvre popup manuelle pour les HP
+                             raw = msg.replace("TRIGGERED:", "")
+                             name = "HP Bas (Média)" if raw == "HP_BAS" else "HP Écouteur"
+                             self.after(0, lambda: self.open_validation_popup(name))
+                except: pass
                 self.mobile_connected = False
-                self.after(0, lambda: self.lbl_mobile_status.configure(text="📱 App Mobile : Déconnectée", text_color="orange"))
-
-        except Exception as e:
-            if not self.stop_thread:
-                print(f"Erreur Serveur: {e}")
+                self.mobile_client = None
+                self.after(0, lambda: self.lbl_mobile_status.configure(text="📱 Déconnecté", text_color="orange"))
+        except Exception as e: print(f"Err Server: {e}")
 
     def run_remote_test(self, test_name, cmd_name):
-        if self.mobile_connected and self.mobile_client:
-            try:
-                # Envoi de la commande simple (ex: HP_ECOUTEUR)
-                self.mobile_client.sendall(cmd_name.encode('utf-8'))
-                print(f"Commande envoyée au mobile : {cmd_name}")
-            except Exception as e:
-                print(f"Erreur envoi commande: {e}")
-        
-        # Le PC n'ouvre plus de popup. Il attend le résultat du mobile (ou le fait manuellement pour les HP).
-        pass
+        if self.mobile_connected:
+            try: self.mobile_client.sendall(cmd_name.encode('utf-8'))
+            except: pass
 
-    # --- DETECTION USB (Simplifié) ---
+    def open_validation_popup(self, test_name):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Validation : {test_name}")
+        dialog.geometry("300x200")
+        dialog.attributes("-topmost", True)
+        ctk.CTkLabel(dialog, text=f"Test : {test_name}", font=("Segoe UI", 16, "bold")).pack(pady=20)
+        def set_res(res):
+            self.validate_button(test_name, res)
+            dialog.destroy()
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=20)
+        ctk.CTkButton(btn_frame, text="✅ OUI", fg_color="#34C759", width=100, command=lambda: set_res("OK")).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="❌ NON", fg_color="#FF3B30", width=100, command=lambda: set_res("KO")).pack(side="right", padx=10)
+
     def usb_loop(self):
         while not self.stop_thread:
-            android = False
             try:
-                adb_path = os.path.expandvars(r"%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe")
-                res = subprocess.run([adb_path, "devices"], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                if len(res.stdout.strip().split('\n')) > 1 and "device" in res.stdout: android = True
-            except: 
-                pass
-
-            if android: self.update_status(True, "Android Connecté")
-            else: self.update_status(False, "Déconnecté")
+                res = subprocess.run([self.adb_path, "devices"], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                if "device" in res.stdout and len(res.stdout.strip().split('\n')) > 1:
+                     self.update_status(True, "Android Connecté")
+                else:
+                     self.update_status(False, "Déconnecté")
+            except: pass
             time.sleep(2)
 
     def update_status(self, connected, text):
-        col = "#34C759" if connected else "#FF3B30"
-        self.status_indicator.configure(text=f"● {text}", text_color=col)
+        self.status_indicator.configure(text=f"● {text}", text_color="#34C759" if connected else "#FF3B30")
 
     def close_app(self):
         self.stop_thread = True
-        if self.server_socket:
-            try:
-                socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('127.0.0.1', 6000))
-            except:
-                pass
-            self.server_socket.close()
+        try: self.server_socket.close()
+        except: pass
         self.destroy()
 
 if __name__ == "__main__":
