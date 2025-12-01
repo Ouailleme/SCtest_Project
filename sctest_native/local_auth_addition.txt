@@ -1,0 +1,2 @@
+# Ajout du package local_auth pour la biométrie mobile
+local_auth: ^2.1.6

@@ -14,12 +14,12 @@ import android.view.KeyEvent
 import androidx.annotation.NonNull
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.lang.Math.sqrt
 
-class MainActivity: FlutterActivity(), SensorEventListener {
+class MainActivity: FlutterFragmentActivity(), SensorEventListener {
     private val CHANNEL = "com.example.sctest/native"
     private val REQUEST_RECORD_AUDIO_PERMISSION = 200 
     

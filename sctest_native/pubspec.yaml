@@ -1,20 +1,25 @@
-name: sctest_native
+name: sctest_mobile
 description: SCtest Diagnostic Tool
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  # AUCUN AUTRE PLUGIN ICI.
+  # --- NOS INGRÉDIENTS ---
+  camera: ^0.10.6      # Pour la caméra et le flash
+  sensors_plus: ^6.1.0 # Pour l'accéléromètre
+  proximity_sensor: ^1.3.0 # Pour le capteur de proximité
+  local_auth: ^2.1.6 # Pour la biométrie mobile
+  pdf: ^3.10.7 # Pour l'export PDF
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true

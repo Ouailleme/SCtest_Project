@@ -19,7 +19,7 @@ if (flutterRoot == null) {
 
 android {
     namespace "com.example.sctest_native"
-    compileSdkVersion 33
+    compileSdkVersion 36
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -37,7 +37,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.sctest_native"
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 33
         versionCode 1
         versionName "1.0"
